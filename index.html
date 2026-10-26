@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>体育授業用 リーグ戦＆試合順 自動作成アプリ</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts (Kiwi Maru & Inter for friendly UI) -->
+    <link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400;500;700&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #f0fdf4;
+        }
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            body {
+                background: white;
+                color: black;
+            }
+            .card-box {
+                box-shadow: none !important;
+                border: 1px solid #ccc !important;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen pb-12">
+
+    <!-- ヘッダー -->
+    <header class="bg-emerald-600 text-white shadow-md no-print">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center">
+            <h1 class="text-xl md:text-2xl font-bold flex items-center gap-2">
+                <i class="fa-solid fa-trophy text-yellow-300"></i>
+                体育授業用 リーグ戦＆試合順メイカー
+            </h1>
+            <span class="text-xs md:text-sm bg-emerald-700 px-3 py-1 rounded-full text-emerald-100 mt-2 sm:mt-0">
+                小学校体育・団体競技用
+            </span>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 mt-6">
+
+        <!-- 設定パネル -->
+        <section class="bg-white rounded-2xl p-6 shadow-sm border border-emerald-100 mb-8 no-print">
+            <h2 class="text-lg font-bold text-emerald-800 border-b-2 border-emerald-500 pb-2 mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-sliders"></i> 条件設定
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- チーム数 -->
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">
+                        チーム数 (3〜10)
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <input type="number" id="teamCountInput" min="3" max="10" value="4" 
+                            class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 font-bold text-lg text-center text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <button onclick="applyTeamCount()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg transition shrink-0">
+                            変更
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 同時進行コート数 -->
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">
+                        同時試合数（コート数）
+                    </label>
+                    <select id="courtCountSelect" onchange="generateSchedule()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <option value="1" selected>1コート（1試合ずつ順番に）</option>
+                        <option value="2">2コート（2試合同時進行）</option>
+                        <option value="3">3コート（3試合同時進行）</option>
+                        <option value="4">4コート（4試合同時進行）</option>
+                    </select>
+                </div>
+
+                <!-- 審判割り当て設定 -->
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">
+                        審判（休み）割り当て
+                    </label>
+                    <select id="refereeOption" onchange="generateSchedule()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <option value="auto">試合のないチームが審判（自動）</option>
+                        <option value="none">審判指定なし（先生/コート外）</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- チーム名カスタマイズ入力 -->
+            <div class="mt-4 pt-4 border-t border-slate-100">
+                <label class="block text-sm font-bold text-slate-700 mb-2">チーム名の編集:</label>
+                <div id="teamNameInputs" class="flex flex-wrap gap-2">
+                    <!-- JSで動的に追加されます -->
+                </div>
+            </div>
+        </section>
+
+        <!-- メインコンテンツ表示部分 -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- 左側：進行表（タイムテーブル＆ローテーション表） -->
+            <div class="lg:col-span-7 space-y-6">
+
+                <!-- チーム別 ローテーション役割一覧 -->
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-emerald-100 card-box">
+                    <div class="flex justify-between items-center border-b-2 border-emerald-500 pb-2 mb-4">
+                        <h2 class="text-lg font-bold text-emerald-800 flex items-center gap-2">
+                            <i class="fa-solid fa-users-viewfinder text-emerald-600"></i> ローテーション別 チーム役割案内
+                        </h2>
+                        <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full">
+                            一目で役割確認
+                        </span>
+                    </div>
+
+                    <p class="text-xs text-slate-500 mb-3 no-print">
+                        ※各ローテーション（時間帯）で自分の班が「対戦」「審判」「休み」のどれをするかが分かります。
+                    </p>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs text-center border-collapse">
+                            <thead id="rotationTableHead" class="bg-emerald-600 text-white font-bold">
+                                <!-- JS動的生成 -->
+                            </thead>
+                            <tbody id="rotationTableBody" class="divide-y divide-slate-100">
+                                <!-- JS動的生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 試合順（タイムテーブル） -->
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-emerald-100 card-box">
+                    <div class="flex justify-between items-center border-b-2 border-emerald-500 pb-2 mb-4">
+                        <h2 class="text-lg font-bold text-emerald-800 flex items-center gap-2">
+                            <i class="fa-solid fa-list-ol"></i> 試合進行順（ローテーション詳細）
+                        </h2>
+                        <span id="totalMatchesBadge" class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full">
+                            全 0 試合
+                        </span>
+                    </div>
+
+                    <p class="text-xs text-slate-500 mb-4 no-print">
+                        ※「勝敗/得点」を入力すると右側の対戦表と順位表に即座に反映されます。
+                    </p>
+
+                    <!-- 試合リスト（ローテーション別） -->
+                    <div id="matchScheduleList" class="space-y-4">
+                        <!-- JSで動的生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側：順位表 ＆ 星取表 -->
+            <div class="lg:col-span-5 space-y-6">
+                
+                <!-- 順位表 -->
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-emerald-100 card-box">
+                    <h2 class="text-lg font-bold text-emerald-800 border-b-2 border-emerald-500 pb-2 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-ranking-star text-amber-500"></i> 現在の順位
+                    </h2>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-slate-100 text-slate-600 font-bold">
+                                <tr>
+                                    <th class="p-2 text-center">順位</th>
+                                    <th class="p-2">チーム</th>
+                                    <th class="p-2 text-center">勝点</th>
+                                    <th class="p-2 text-center">勝/分/負</th>
+                                    <th class="p-2 text-center">得失点</th>
+                                </tr>
+                            </thead>
+                            <tbody id="standingsTableBody">
+                                <!-- JSで動的生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 対戦星取表 -->
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-emerald-100 card-box">
+                    <h2 class="text-lg font-bold text-emerald-800 border-b-2 border-emerald-500 pb-2 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-table-cells"></i> 星取表（対戦マトリクス）
+                    </h2>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs text-center border-collapse">
+                            <thead id="crossTableHead" class="bg-emerald-50 text-emerald-900 font-bold">
+                                <!-- JSで動的生成 -->
+                            </thead>
+                            <tbody id="crossTableBody">
+                                <!-- JSで動的生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 操作ボタン類（印刷・リセット） -->
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-emerald-100 no-print flex flex-col gap-3">
+                    <button onclick="window.print()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-print"></i> 印刷する（A4サイズ用）
+                    </button>
+                    <button onclick="resetScores()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-2 rounded-xl border border-rose-200 transition text-sm flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-left"></i> スコアをリセット
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 状態管理変数
+        let teams = ["1班", "2班", "3班", "4班"];
+        let matches = []; // { id, round, slot, court, teamA, teamB, referee, scoreA, scoreB, played }
+
+        // 初期化
+        window.onload = function() {
+            renderTeamInputs();
+            generateSchedule();
+        };
+
+        // チーム数の変更適用
+        function applyTeamCount() {
+            const count = parseInt(document.getElementById("teamCountInput").value);
+            if (count < 3 || count > 10) {
+                alert("チーム数は3〜10で設定してください。");
+                return;
+            }
+
+            // チーム名配列の調整
+            if (teams.length < count) {
+                for (let i = teams.length; i < count; i++) {
+                    teams.push(`${i + 1}班`);
+                }
+            } else if (teams.length > count) {
+                teams = teams.slice(0, count);
+            }
+
+            renderTeamInputs();
+            generateSchedule();
+        }
+
+        // チーム名入力欄の描画
+        function renderTeamInputs() {
+            const container = document.getElementById("teamNameInputs");
+            container.innerHTML = "";
+            teams.forEach((team, index) => {
+                const input = document.createElement("input");
+                input.type = "text";
+                input.value = team;
+                input.className = "bg-slate-50 border border-slate-300 rounded px-2 py-1 text-sm font-bold text-slate-700 w-28 focus:ring-2 focus:ring-emerald-500 focus:outline-none";
+                input.onchange = (e) => {
+                    teams[index] = e.target.value || `${index + 1}班`;
+                    generateSchedule(true); // スコア維持したままスケジュール更新
+                };
+                container.appendChild(input);
+            });
+        }
+
+        // リーグ戦スケジュールの生成（ラウンドロビン ＋ コート割り当てアルゴリズム）
+        function generateSchedule(keepScores = false) {
+            const oldMatches = [...matches];
+            matches = [];
+
+            const courtCount = parseInt(document.getElementById("courtCountSelect").value) || 1;
+            const refOption = document.getElementById("refereeOption").value;
+
+            const n = teams.length;
+            const isOdd = n % 2 !== 0;
+            const numTeams = isOdd ? n + 1 : n;
+            const teamIndices = Array.from({length: numTeams}, (_, i) => i);
+
+            let rounds = [];
+            const numRounds = numTeams - 1;
+            const halfSize = numTeams / 2;
+
+            // ラウンドロビンによる対戦カード生成
+            for (let round = 0; round < numRounds; round++) {
+                let roundMatches = [];
+                for (let i = 0; i < halfSize; i++) {
+                    const t1 = teamIndices[i];
+                    const t2 = teamIndices[numTeams - 1 - i];
+
+                    if (t1 < n && t2 < n) {
+                        roundMatches.push({
+                            teamA: t1,
+                            teamB: t2
+                        });
+                    }
+                }
+                rounds.push(roundMatches);
+                teamIndices.splice(1, 0, teamIndices.pop());
+            }
+
+            // コート数に合わせてスロット（ローテーション）分割
+            let globalMatchId = 1;
+            let slotIndex = 1;
+
+            rounds.forEach((roundMatches, rIdx) => {
+                // ラウンド内の試合をコート数ごとに分割
+                for (let i = 0; i < roundMatches.length; i += courtCount) {
+                    const chunk = roundMatches.slice(i, i + courtCount);
+
+                    // 同一時間帯で試合をしていないチームの割り出し（審判用）
+                    const playingTeams = new Set();
+                    chunk.forEach(m => {
+                        playingTeams.add(m.teamA);
+                        playingTeams.add(m.teamB);
+                    });
+
+                    const idleTeams = [];
+                    for (let t = 0; t < n; t++) {
+                        if (!playingTeams.has(t)) {
+                            idleTeams.push(t);
+                        }
+                    }
+
+                    let idlePtr = 0;
+
+                    chunk.forEach((m, cIdx) => {
+                        let refereeIndex = null;
+                        if (refOption === 'auto' && idleTeams.length > 0) {
+                            refereeIndex = idleTeams[idlePtr % idleTeams.length];
+                            idlePtr++;
+                        }
+
+                        // 旧スコア引継ぎ
+                        let scoreA = "";
+                        let scoreB = "";
+                        let played = false;
+
+                        if (keepScores) {
+                            const prev = oldMatches.find(om => 
+                                (om.teamA === m.teamA && om.teamB === m.teamB) || 
+                                (om.teamA === m.teamB && om.teamB === m.teamA)
+                            );
+                            if (prev && prev.played) {
+                                if (prev.teamA === m.teamA) {
+                                    scoreA = prev.scoreA;
+                                    scoreB = prev.scoreB;
+                                } else {
+                                    scoreA = prev.scoreB;
+                                    scoreB = prev.scoreA;
+                                }
+                                played = true;
+                            }
+                        }
+
+                        matches.push({
+                            id: globalMatchId++,
+                            round: rIdx + 1,
+                            slot: slotIndex,
+                            court: cIdx + 1,
+                            teamA: m.teamA,
+                            teamB: m.teamB,
+                            referee: refereeIndex,
+                            scoreA: scoreA,
+                            scoreB: scoreB,
+                            played: played
+                        });
+                    });
+
+                    slotIndex++;
+                }
+            });
+
+            renderMatches();
+            renderRotationOverview();
+            calculateAndRenderStandings();
+        }
+
+        // ローテーション別チーム役割一覧テーブルの表示
+        function renderRotationOverview() {
+            const thead = document.getElementById("rotationTableHead");
+            const tbody = document.getElementById("rotationTableBody");
+
+            // スロット（ローテーション）数の把握
+            const slots = {};
+            matches.forEach(m => {
+                if (!slots[m.slot]) slots[m.slot] = [];
+                slots[m.slot].push(m);
+            });
+            const slotKeys = Object.keys(slots);
+
+            // ヘッダー作成
+            let headHTML = `<tr><th class="p-2 border border-emerald-700 bg-emerald-700 text-left">チーム</th>`;
+            slotKeys.forEach(s => {
+                headHTML += `<th class="p-2 border border-emerald-700 whitespace-nowrap">第 ${s} Rot</th>`;
+            });
+            headHTML += `</tr>`;
+            thead.innerHTML = headHTML;
+
+            // ボディ作成
+            tbody.innerHTML = "";
+            const courtNames = ["コートA", "コートB", "コートC", "コートD"];
+
+            teams.forEach((tName, tIdx) => {
+                const tr = document.createElement("tr");
+                let rowHTML = `<td class="p-2 font-bold text-slate-800 border border-slate-200 bg-slate-50 text-left whitespace-nowrap">${tName}</td>`;
+
+                slotKeys.forEach(sNum => {
+                    const slotMatches = slots[sNum];
+                    
+                    // チームの役割を判定
+                    let roleBadge = `<span class="text-slate-400">休み</span>`;
+
+                    slotMatches.forEach(m => {
+                        if (m.teamA === tIdx || m.teamB === tIdx) {
+                            const oppIdx = (m.teamA === tIdx) ? m.teamB : m.teamA;
+                            const courtLabel = courtNames[m.court - 1] || `${m.court}コート`;
+                            roleBadge = `<span class="bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded text-[11px] block border border-emerald-300">
+                                <i class="fa-solid fa-gamepad text-emerald-600"></i> ${courtLabel}<br><span class="text-[10px] text-slate-600 font-normal">vs ${teams[oppIdx]}</span>
+                            </span>`;
+                        } else if (m.referee === tIdx) {
+                            roleBadge = `<span class="bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded text-[11px] block border border-amber-300">
+                                <i class="fa-solid fa-whistle"></i> 審判
+                            </span>`;
+                        }
+                    });
+
+                    rowHTML += `<td class="p-1 border border-slate-200 align-middle">${roleBadge}</td>`;
+                });
+
+                tr.innerHTML = rowHTML;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 試合リストの表示（ローテーションごとのカード表示）
+        function renderMatches() {
+            const container = document.getElementById("matchScheduleList");
+            container.innerHTML = "";
+
+            document.getElementById("totalMatchesBadge").textContent = `全 ${matches.length} 試合`;
+
+            const courtCount = parseInt(document.getElementById("courtCountSelect").value) || 1;
+
+            // スロット（時間区分）ごとにグループ化
+            const slots = {};
+            matches.forEach(m => {
+                if (!slots[m.slot]) slots[m.slot] = [];
+                slots[m.slot].push(m);
+            });
+
+            const courtNames = ["コートA", "コートB", "コートC", "コートD"];
+
+            Object.keys(slots).forEach(slotNum => {
+                const slotMatches = slots[slotNum];
+
+                const slotWrapper = document.createElement("div");
+                slotWrapper.className = "border-2 border-emerald-300 rounded-2xl p-4 bg-emerald-50/30 space-y-3";
+
+                // スロット（ローテーション）ヘッダー
+                let slotHeader = `
+                <div class="flex flex-wrap justify-between items-center border-b-2 border-emerald-200 pb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="bg-emerald-600 text-white font-extrabold text-sm px-3 py-1 rounded-lg shadow-sm">
+                            第 ${slotNum} ローテーション
+                        </span>
+                        <span class="text-xs text-slate-600 font-bold">
+                            (${slotMatches.length} 試合)
+                        </span>
+                    </div>
+                    ${courtCount > 1 ? `<span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded border border-emerald-300">同時 ${courtCount} コート進行</span>` : ''}
+                </div>`;
+
+                slotWrapper.innerHTML = slotHeader;
+
+                const gridContainer = document.createElement("div");
+                gridContainer.className = "grid grid-cols-1 gap-3";
+
+                slotMatches.forEach(m => {
+                    const card = document.createElement("div");
+                    card.className = `p-3 rounded-xl border transition ${
+                        m.played ? 'bg-slate-50 border-slate-300' : 'bg-white border-emerald-300 shadow-sm'
+                    }`;
+
+                    const refereeText = (m.referee !== null && teams[m.referee]) 
+                        ? `<span class="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded font-bold border border-amber-200"><i class="fa-solid fa-whistle"></i> 審判: ${teams[m.referee]}</span>`
+                        : '';
+
+                    const courtBadge = courtCount > 1 
+                        ? `<span class="bg-emerald-700 text-white font-bold text-xs px-2.5 py-1 rounded-md">${courtNames[m.court - 1] || 'コート' + m.court}</span>`
+                        : `<span class="bg-emerald-600 text-white font-bold text-xs px-2.5 py-1 rounded-md">第 ${m.id} 試合</span>`;
+
+                    card.innerHTML = `
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <div class="flex items-center gap-2">
+                                ${courtBadge}
+                                ${refereeText}
+                            </div>
+                            
+                            <!-- スコア入力エリア -->
+                            <div class="flex items-center gap-2 font-bold my-1 sm:my-0">
+                                <span class="text-slate-800 text-sm md:text-base w-20 md:w-28 text-right truncate" title="${teams[m.teamA]}">
+                                    ${teams[m.teamA]}
+                                </span>
+
+                                <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-300">
+                                    <input type="number" min="0" value="${m.scoreA}" 
+                                        onchange="updateScore(${m.id}, 'A', this.value)"
+                                        class="w-9 h-7 text-center font-bold text-base bg-white border border-slate-300 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                    <span class="text-slate-400 font-normal">-</span>
+                                    <input type="number" min="0" value="${m.scoreB}" 
+                                        onchange="updateScore(${m.id}, 'B', this.value)"
+                                        class="w-9 h-7 text-center font-bold text-base bg-white border border-slate-300 rounded focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                                </div>
+
+                                <span class="text-slate-800 text-sm md:text-base w-20 md:w-28 text-left truncate" title="${teams[m.teamB]}">
+                                    ${teams[m.teamB]}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                    gridContainer.appendChild(card);
+                });
+
+                slotWrapper.appendChild(gridContainer);
+                container.appendChild(slotWrapper);
+            });
+        }
+
+        // スコアの更新
+        function updateScore(matchId, side, value) {
+            const match = matches.find(m => m.id === matchId);
+            if (!match) return;
+
+            if (side === 'A') match.scoreA = value;
+            if (side === 'B') match.scoreB = value;
+
+            // 両方のスコアが入っていれば対戦完了フラグを立てる
+            if (match.scoreA !== "" && match.scoreB !== "") {
+                match.played = true;
+            } else {
+                match.played = false;
+            }
+
+            calculateAndRenderStandings();
+        }
+
+        // スコアのリセット
+        function resetScores() {
+            if (!confirm("すべての試合のスコアをクリアしますか？")) return;
+            matches.forEach(m => {
+                m.scoreA = "";
+                m.scoreB = "";
+                m.played = false;
+            });
+            renderMatches();
+            calculateAndRenderStandings();
+        }
+
+        // 成績・順位の計算＆描画
+        function calculateAndRenderStandings() {
+            // チームごとの集計データ生成
+            const stats = teams.map((name, idx) => ({
+                id: idx,
+                name: name,
+                points: 0,    // 勝ち点 (勝:3, 分:1, 負:0)
+                played: 0,    // 試合数
+                won: 0,       // 勝利
+                drawn: 0,     // 引き分け
+                lost: 0,      // 敗戦
+                gf: 0,        // 得点 (Goals For)
+                ga: 0,        // 失点 (Goals Against)
+                gd: 0         // 得失点差 (Goal Difference)
+            }));
+
+            // 全試合結果を反映
+            matches.forEach(m => {
+                if (m.played) {
+                    const sA = parseInt(m.scoreA) || 0;
+                    const sB = parseInt(m.scoreB) || 0;
+
+                    const tA = stats[m.teamA];
+                    const tB = stats[m.teamB];
+
+                    tA.played++;
+                    tB.played++;
+
+                    tA.gf += sA;
+                    tA.ga += sB;
+                    tB.gf += sB;
+                    tB.ga += sA;
+
+                    if (sA > sB) {
+                        tA.won++;
+                        tA.points += 3;
+                        tB.lost++;
+                    } else if (sB > sA) {
+                        tB.won++;
+                        tB.points += 3;
+                        tA.lost++;
+                    } else {
+                        tA.drawn++;
+                        tA.points += 1;
+                        tB.drawn++;
+                        tB.points += 1;
+                    }
+                }
+            });
+
+            // 得失点差計算
+            stats.forEach(s => {
+                s.gd = s.gf - s.ga;
+            });
+
+            // 順位ソート (1. 勝ち点 2. 得失点差 3. 総得点)
+            const sortedStats = [...stats].sort((a, b) => {
+                if (b.points !== a.points) return b.points - a.points;
+                if (b.gd !== a.gd) return b.gd - a.gd;
+                return b.gf - a.gf;
+            });
+
+            // 順位表の描画
+            const tbody = document.getElementById("standingsTableBody");
+            tbody.innerHTML = "";
+
+            sortedStats.forEach((s, rank) => {
+                const tr = document.createElement("tr");
+                tr.className = "border-b border-slate-100 hover:bg-slate-50";
+                
+                // メダルアイコン
+                let rankBadge = `<span class="font-bold text-slate-500">${rank + 1}</span>`;
+                if (rank === 0) rankBadge = `<i class="fa-solid fa-crown text-amber-400 text-base"></i>`;
+                if (rank === 1) rankBadge = `<i class="fa-solid fa-medal text-slate-400 text-base"></i>`;
+                if (rank === 2) rankBadge = `<i class="fa-solid fa-medal text-amber-600 text-base"></i>`;
+
+                tr.innerHTML = `
+                    <td class="p-2 text-center">${rankBadge}</td>
+                    <td class="p-2 font-bold text-slate-800">${s.name}</td>
+                    <td class="p-2 text-center font-extrabold text-emerald-600">${s.points}</td>
+                    <td class="p-2 text-center text-xs text-slate-500">${s.won}/${s.drawn}/${s.lost}</td>
+                    <td class="p-2 text-center font-bold ${s.gd > 0 ? 'text-blue-600' : (s.gd < 0 ? 'text-rose-500' : 'text-slate-600')}">
+                        ${s.gd > 0 ? '+' : ''}${s.gd}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // 星取表の描画
+            renderCrossTable(stats);
+        }
+
+        // 星取表（マトリクス）の描画
+        function renderCrossTable(stats) {
+            const thead = document.getElementById("crossTableHead");
+            const tbody = document.getElementById("crossTableBody");
+
+            // ヘッダー生成
+            let headHTML = `<tr><th class="p-2 border border-emerald-200">チーム</th>`;
+            teams.forEach(t => {
+                headHTML += `<th class="p-2 border border-emerald-200 truncate max-w-[60px]" title="${t}">${t}</th>`;
+            });
+            headHTML += `</tr>`;
+            thead.innerHTML = headHTML;
+
+            // ボディ生成
+            tbody.innerHTML = "";
+            teams.forEach((tRow, i) => {
+                const tr = document.createElement("tr");
+                let rowHTML = `<td class="p-2 font-bold border border-emerald-100 bg-emerald-50/50 truncate max-w-[60px]" title="${tRow}">${tRow}</td>`;
+
+                teams.forEach((tCol, j) => {
+                    if (i === j) {
+                        // 同一チーム
+                        rowHTML += `<td class="p-2 border border-emerald-100 bg-slate-200 text-slate-400"> - </td>`;
+                    } else {
+                        // 該当対戦を探す
+                        const match = matches.find(m => 
+                            (m.teamA === i && m.teamB === j) || (m.teamA === j && m.teamB === i)
+                        );
+
+                        if (match && match.played) {
+                            const isA = match.teamA === i;
+                            const myScore = isA ? parseInt(match.scoreA) : parseInt(match.scoreB);
+                            const oppScore = isA ? parseInt(match.scoreB) : parseInt(match.scoreA);
+
+                            let resultIcon = "";
+                            let bgClass = "";
+
+                            if (myScore > oppScore) {
+                                resultIcon = `<span class="text-rose-500 font-bold">〇</span>`;
+                                bgClass = "bg-rose-50/30";
+                            } else if (myScore < oppScore) {
+                                resultIcon = `<span class="text-blue-500 font-bold">●</span>`;
+                                bgClass = "bg-blue-50/30";
+                            } else {
+                                resultIcon = `<span class="text-slate-500 font-bold">△</span>`;
+                                bgClass = "bg-slate-50";
+                            }
+
+                            rowHTML += `<td class="p-1 border border-emerald-100 ${bgClass}">
+                                <div class="text-[10px] text-slate-400">${myScore}-${oppScore}</div>
+                                <div>${resultIcon}</div>
+                            </td>`;
+                        } else {
+                            rowHTML += `<td class="p-2 border border-emerald-100 text-slate-300"> </td>`;
+                        }
+                    }
+                });
+
+                rowHTML += `</tr>`;
+                tr.innerHTML = rowHTML;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>
